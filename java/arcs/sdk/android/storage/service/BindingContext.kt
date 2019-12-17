@@ -12,18 +12,25 @@
 package arcs.sdk.android.storage.service
 
 import androidx.annotation.VisibleForTesting
-import arcs.core.crdt.CrdtData
-import arcs.core.crdt.CrdtException
-import arcs.core.crdt.CrdtOperation
-import arcs.core.storage.ActiveStore
-import arcs.core.storage.ProxyCallback
-import arcs.core.storage.ProxyMessage
-import arcs.core.storage.Store
-import arcs.core.storage.util.SendQueue
 import arcs.android.crdt.ParcelableCrdtType
 import arcs.android.crdt.toParcelable
 import arcs.android.storage.ParcelableProxyMessage
 import arcs.android.storage.toParcelable
+import arcs.core.crdt.CrdtData
+import arcs.core.crdt.CrdtException
+import arcs.core.crdt.CrdtOperation
+import arcs.core.crdt.CrdtSet
+import arcs.core.crdt.CrdtSingleton
+import arcs.core.data.RawEntity
+import arcs.core.storage.ActiveStore
+import arcs.core.storage.ProxyCallback
+import arcs.core.storage.ProxyMessage
+import arcs.core.storage.ReferenceModeStore
+import arcs.core.storage.Store
+import arcs.core.storage.referencemode.RefModeStoreData
+import arcs.core.storage.referencemode.RefModeStoreOp
+import arcs.core.storage.util.SendQueue
+import arcs.core.util.Log
 import kotlin.coroutines.CoroutineContext
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.CoroutineName
@@ -106,6 +113,7 @@ class BindingContext(
                 unregisterCallback(token)
             }, 0)
 
+            Log.debug { "BindingContext - Registered callback: $callback with token: $token" }
             token
         }
     }
@@ -119,7 +127,7 @@ class BindingContext(
             val activeStore = store.activate() as ActiveStore<CrdtData, CrdtOperation, Any?>
             val actualMessage = message.actual as ProxyMessage<CrdtData, CrdtOperation, Any?>
             try {
-                if (activeStore.onProxyMessage(actualMessage)) {
+                if (activeStore.onProxyMessage(activeStore.prepMessage(actualMessage))) {
                     resultCallback.onResult(null)
                 } else throw CrdtException("Failed to process message")
             } catch (e: CrdtException) {
@@ -135,4 +143,57 @@ class BindingContext(
     companion object {
         private val nextId = atomic(0)
     }
+}
+
+@Suppress("UNCHECKED_CAST")
+fun <Data, Op, ConsumerData> ActiveStore<Data, Op, ConsumerData>.prepMessage(
+    message: ProxyMessage<CrdtData, CrdtOperation, Any?>
+): ProxyMessage<CrdtData, CrdtOperation, Any?> where Data : CrdtData,
+                                                     Op : CrdtOperation {
+    if (this !is ReferenceModeStore) return message
+
+    return when (message) {
+        is ProxyMessage.SyncRequest ->
+            ProxyMessage.SyncRequest<RefModeStoreData, RefModeStoreOp, Any>(message.id)
+        is ProxyMessage.ModelUpdate ->
+            ProxyMessage.ModelUpdate<RefModeStoreData, RefModeStoreOp, Any>(
+                when (val model = message.model) {
+                    is CrdtSingleton.Data<*> ->
+                        RefModeStoreData.Singleton(model as CrdtSingleton.Data<RawEntity>)
+                    is CrdtSet.Data<*> ->
+                        RefModeStoreData.Set(model as CrdtSet.Data<RawEntity>)
+                    else -> throw IllegalArgumentException(
+                        "Unsupported model type for ReferenceModeStore"
+                    )
+                },
+                message.id
+            )
+        is ProxyMessage.Operations ->
+            ProxyMessage.Operations<RefModeStoreData, RefModeStoreOp, Any>(
+                message.operations.map {
+                    when (it) {
+                        is CrdtSingleton.Operation.Update<*> ->
+                            RefModeStoreOp.SingletonUpdate(
+                                it as CrdtSingleton.Operation.Update<RawEntity>
+                            )
+                        is CrdtSingleton.Operation.Clear<*> ->
+                            RefModeStoreOp.SingletonClear(
+                                it as CrdtSingleton.Operation.Clear<RawEntity>
+                            )
+                        is CrdtSet.Operation.Add<*> ->
+                            RefModeStoreOp.SetAdd(
+                                it as CrdtSet.Operation.Add<RawEntity>
+                            )
+                        is CrdtSet.Operation.Remove<*> ->
+                            RefModeStoreOp.SetRemove(
+                                it as CrdtSet.Operation.Remove<RawEntity>
+                            )
+                        else -> throw IllegalArgumentException(
+                            "Unsupported operation type for ReferenceModeStore"
+                        )
+                    }
+                },
+                message.id
+            )
+    } as ProxyMessage<CrdtData, CrdtOperation, Any?>
 }

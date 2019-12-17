@@ -15,9 +15,14 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import arcs.android.storage.ParcelableStoreOptions
 import arcs.core.storage.Store
 import arcs.core.storage.StoreOptions
-import arcs.android.storage.ParcelableStoreOptions
+import arcs.core.storage.driver.RamDiskDriverProvider
+import arcs.core.storage.driver.RamDiskStorageKey
+import arcs.core.storage.referencemode.ReferenceModeStorageKey
+import arcs.core.util.Log
+import arcs.core.util.TaggedLog
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -33,7 +38,21 @@ class StorageService : Service() {
     private val scope = CoroutineScope(coroutineContext)
     private val stores = ConcurrentHashMap<StoreOptions<*, *, *>, Store<*, *, *>>()
 
+    init {
+        // Inititalization/registration
+        Log.debug { "StorageService - initialization" }
+        RamDiskDriverProvider()
+        RamDiskStorageKey("poo")
+        ReferenceModeStorageKey.registerParser()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        log.debug { "onCreate" }
+    }
+
     override fun onBind(intent: Intent): IBinder? {
+        log.debug { "onBind" }
         val parcelableOptions = requireNotNull(
             intent.getParcelableExtra<ParcelableStoreOptions?>(EXTRA_OPTIONS)
         ) { "No StoreOptions found in Intent" }
@@ -47,11 +66,13 @@ class StorageService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        log.debug { "onDestroy" }
         scope.cancel()
     }
 
     companion object {
         private const val EXTRA_OPTIONS = "storeOptions"
+        private val log = TaggedLog { "StorageService" }
 
         /**
          * Creates an [Intent] to use when binding to the [StorageService] from a [ServiceStore].

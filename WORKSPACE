@@ -124,10 +124,12 @@ KOTLINX_COROUTINES_VERSION = "1.3.2"
 
 maven_install(
     artifacts = [
+        "androidx.appcompat:appcompat:1.1.0",
         "androidx.annotation:annotation:1.1.0",
         "androidx.lifecycle:lifecycle-common:" + ANDROIDX_LIFECYCLE_VERSION,
         "androidx.lifecycle:lifecycle-common-java8:" + ANDROIDX_LIFECYCLE_VERSION,
         "androidx.lifecycle:lifecycle-runtime:" + ANDROIDX_LIFECYCLE_VERSION,
+        "androidx.recyclerview:recyclerview:1.1.0",
         "androidx.webkit:webkit:1.1.0-rc01",
         "androidx.test:core:1.0.0",
         "androidx.test.ext:junit:1.0.0",
@@ -144,6 +146,7 @@ maven_install(
         "com.nhaarman.mockitokotlin2:mockito-kotlin:2.2.0",
         "javax.inject:javax.inject:1",
         "junit:junit:4.11",
+        "org.jetbrains.kotlinx:kotlinx-coroutines-android:" + KOTLINX_COROUTINES_VERSION,
         "org.jetbrains.kotlinx:kotlinx-coroutines-core:" + KOTLINX_COROUTINES_VERSION,
         "org.jetbrains.kotlinx:kotlinx-coroutines-core-js:" + KOTLINX_COROUTINES_VERSION,
         "org.jetbrains.kotlinx:kotlinx-coroutines-test:" + KOTLINX_COROUTINES_VERSION,
